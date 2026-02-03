@@ -1,0 +1,17 @@
+{
+  "version": "1.0",
+  "lastUpdated": "2026-02-03T15:16:59.597489",
+  "totalSkills": 2,
+  "skills": {
+    "categories/code-analysis/java-code-review/SKILL.md": {
+      "hash": "63bf02608f94ee9e94f0b646593162535e8b16c9eb49293278e153b89cded511",
+      "size": 2734,
+      "modified": "2026-02-03T14:33:45.929669"
+    },
+    "categories/development/template-skill/SKILL.md": {
+      "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0,
+      "modified": "2026-02-03T14:33:45.929859"
+    }
+  }
+}
