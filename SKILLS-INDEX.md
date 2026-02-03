@@ -14,6 +14,10 @@
   - 位置: `categories/development/template-skill/`
   - 描述: 创建新技能的标准模板和示例
 
+- **git-commit-message** - Git提交消息生成器
+  - 位置: `categories/development/git-commit-message/`
+  - 描述: 根据暂存区变更和仓库提交风格生成提交消息
+
 - **deployment/claude-deploy-service** - GitHub项目一键部署
   - 位置: `categories/development/deployment/claude-deploy-service/`
   - 描述: 一键部署GitHub项目到Docker并自动集成到Homepage
