@@ -1,7 +1,7 @@
 {
   "version": "1.0",
-  "lastUpdated": "2026-02-03T15:16:59.597489",
-  "totalSkills": 2,
+  "lastUpdated": "2026-02-03T15:21:33.738458",
+  "totalSkills": 3,
   "skills": {
     "categories/code-analysis/java-code-review/SKILL.md": {
       "hash": "63bf02608f94ee9e94f0b646593162535e8b16c9eb49293278e153b89cded511",
@@ -12,6 +12,11 @@
       "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
       "size": 0,
       "modified": "2026-02-03T14:33:45.929859"
+    },
+    "categories/development/deployment/claude-deploy-service/SKILL.md": {
+      "hash": "5e4c01a49fbbc816bc7a96c4748b21b914091f441e51faa122203b7135b45cc3",
+      "size": 8751,
+      "modified": "2026-02-03T15:21:15.098743"
     }
   }
 }

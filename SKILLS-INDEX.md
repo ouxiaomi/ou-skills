@@ -14,6 +14,10 @@
   - 位置: `categories/development/template-skill/`
   - 描述: 创建新技能的标准模板和示例
 
+- **deployment/claude-deploy-service** - GitHub项目一键部署
+  - 位置: `categories/development/deployment/claude-deploy-service/`
+  - 描述: 一键部署GitHub项目到Docker并自动集成到Homepage
+
 ## 添加新技能
 
 1. 选择合适的分类目录，如果没有则创建新的
