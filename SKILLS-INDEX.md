@@ -22,6 +22,10 @@
   - 位置: `categories/development/deployment/claude-deploy-service/`
   - 描述: 一键部署GitHub项目到Docker并自动集成到Homepage
 
+- **harness** - 长期运行Agent Harness系统
+  - 位置: `harness/`
+  - 描述: 配置长期运行的Agent Harness系统，支持Node.js/Python/Go项目自动检测
+
 ## 添加新技能
 
 1. 选择合适的分类目录，如果没有则创建新的
@@ -45,4 +49,4 @@ my-skill/
 
 ---
 
-最后更新: 2026-02-03
+最后更新: 2026-02-14
