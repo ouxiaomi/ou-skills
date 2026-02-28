@@ -496,78 +496,18 @@ def create_prompts_directory(project_path: Path, project_info: dict) -> Path:
     prompts_dir = project_path / ".claude" / "prompts"
     prompts_dir.mkdir(parents=True, exist_ok=True)
 
-    # Initializer prompt
-    initializer_content = f'''# 初始化代理提示词
+    # Base directory for harness prompts
+    base_dir = Path(__file__).parent.parent / "prompts"
 
-你是 {project_info["name"]} 项目的初始化代理。你的任务是设置项目的初始环境，为后续的编码代理做好准备。
-
-## 你的任务
-
-1. 创建以下文件（如果不存在）：
-   - `feature_list.json` - 功能需求列表
-   - `claude-progress.txt` - 进度跟踪日志
-   - `init.sh` - 开发环境初始化脚本
-
-2. 进行初始 Git 提交：
-   - 提交信息格式: `chore: 初始化长运行代理 Harness 系统`
-   - 包含所有新增文件
-
-3. 更新项目文档：
-   - 在 `CLAUDE.md` 中添加"长运行代理 Harness"章节
-
-## 重要规则
-
-- 不要删除或修改现有的功能代码
-- 保持与现有代码风格一致
-- 所有新文件必须包含适当的注释
-'''
-    (prompts_dir / "initializer.md").write_text(initializer_content)
-
-    # Coding agent prompt
-    coding_agent_content = f'''# 编码代理提示词
-
-你是 {project_info["name"]} 项目的编码代理。你的任务是增量推进项目开发，并在每次会话结束时留下清晰的状态记录。
-
-## 会话开始流程
-
-1. **定位工作目录**
-   ```bash
-   pwd
-   ```
-
-2. **了解项目进度**
-   - 读取 `claude-progress.txt`
-   - 运行 `git log --oneline -10`
-
-3. **选择下一个任务**
-   - 读取 `feature_list.json`
-   - 选择优先级最高的 pending 功能
-
-4. **验证环境**
-   ```bash
-   ./init.sh
-   ```
-
-## 工作原则
-
-1. **增量开发**: 每次只处理一个功能
-2. **保持环境整洁**: 确保代码可随时合并到主分支
-3. **充分测试**: 标记功能完成前必须验证
-4. **记录进度**: 会话结束时更新进度文件
-
-## 会话结束流程
-
-1. 提交 Git（描述性提交信息）
-2. 更新 `claude-progress.txt`
-3. 更新 `feature_list.json` 中的功能状态
-
-## 禁止事项
-
-- 不得删除或修改 `feature_list.json` 中的功能描述
-- 不得跳过测试直接标记功能为完成
-- 不得在一次会话中处理多个功能
-'''
-    (prompts_dir / "coding-agent.md").write_text(coding_agent_content)
+    # Copy all prompt files, substituting project name
+    prompt_files = ["initializer.md", "coding-agent.md", "checkpoint.md"]
+    for prompt_file in prompt_files:
+        source = base_dir / prompt_file
+        if source.exists():
+            content = source.read_text()
+            # Replace placeholder with actual project name
+            content = content.replace("Project Name", project_info["name"].title())
+            (prompts_dir / prompt_file).write_text(content)
 
     return prompts_dir
 

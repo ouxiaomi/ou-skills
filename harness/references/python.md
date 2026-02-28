@@ -111,3 +111,46 @@ strict = true
 line-length = 88
 select = ["E", "F", "I", "N", "W"]
 ```
+
+## Harness 最佳实践
+
+### 虚拟环境优先
+
+Harness 脚本应始终使用虚拟环境：
+
+```bash
+# 检测并激活虚拟环境
+if [ -d ".venv" ]; then
+    source .venv/bin/activate
+elif [ -d "venv" ]; then
+    source venv/bin/activate
+fi
+```
+
+### UV 推荐配置
+
+```bash
+# 使用 uv 进行依赖管理
+if command -v uv &> /dev/null; then
+    # 同步依赖
+    uv sync
+    
+    # 运行测试
+    uv run pytest
+    
+    # 启动开发服务器
+    uv run uvicorn app.main:app --reload
+fi
+```
+
+### 测试集成
+
+确保 init.sh 可以运行基本测试验证：
+
+```bash
+# 在 init.sh 末尾添加测试检查
+if [ -f "pytest.ini" ] || [ -d "tests" ]; then
+    echo "🧪 验证测试..."
+    uv run pytest --tb=short -q
+fi
+```
