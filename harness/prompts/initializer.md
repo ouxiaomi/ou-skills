@@ -16,63 +16,94 @@ Complete ALL of these before finishing:
 - Understand existing codebase structure
 - Note any existing tests or documentation
 
-### 2. Create feature_list.json
+### 2. Create feature_list.json (v2 Format)
 
 Analyze the project and create a structured feature backlog:
 
 ```json
 {
+  "version": 2,
+  "created": "2025-02-28T00:00:00Z",
   "project": "your-project-name",
   "version": "0.1.0",
-  "lastUpdated": "YYYY-MM-DD",
+  "session_config": {
+    "max_tasks_per_session": 20,
+    "max_sessions": 50
+  },
   "features": [
     {
       "id": "F001",
+      "title": "Core project structure and dependencies",
       "category": "core",
-      "description": "Core project structure and dependencies",
-      "priority": "high",
       "status": "completed",
-      "steps": ["Analyzed codebase", "Set up project"],
-      "testCommand": "Verify project builds",
-      "createdAt": "YYYY-MM-DD",
-      "completedAt": "YYYY-MM-DD",
+      "priority": "high",
+      "depends_on": [],
+      "attempts": 1,
+      "max_attempts": 3,
+      "started_at_commit": "abc1234",
+      "validation": {
+        "command": "npm run build",
+        "timeout_seconds": 300
+      },
+      "on_failure": {
+        "cleanup": null
+      },
+      "error_log": [],
+      "checkpoints": [],
+      "completed_at": "2025-02-28T10:00:00Z",
+      "created_at": "2025-02-28T00:00:00Z",
       "blockers": []
     }
-  ]
+  ],
+  "session_count": 1,
+  "last_session": "2025-02-28T10:00:00Z"
 }
 ```
 
 **Priority Guidelines:**
 - `high` - Essential for the project to function (setup, core structure)
 - `medium` - Important features users expect
-- `low` - Nice to have, can be deferre
+- `low` - Nice to have, can be deferred
+
+**Task Fields:**
+- `title` - Human-readable task description
+- `depends_on` - Array of task IDs this depends on (e.g., `["F001", "F002"]`)
+- `validation.command` - Shell command to verify task completion
+- `validation.timeout_seconds` - Max time to run validation
 
 ### 3. Create claude-progress.txt
 
-Create the progress log file:
+Create the progress log file with standardized format:
 
 ```markdown
-# Project Name - Development Progress Log
+# Project Name - Harness Progress Log
 
-## Format
-Every session end should append:
-- Date/time
-- Completed work
-- Current state
-- Next steps
+## Format (grep-friendly, single-line)
+[ISO-timestamp] [SESSION-N] <TYPE> [task-id] [category] message
 
----
+Types: INIT, Starting, Completed, ERROR, CHECKPOINT, ROLLBACK, RECOVERY, STATS, LOCK, WARN
 
-## Initialization (YYYY-MM-DD)
+## Examples
 
-- Created Harness system infrastructure
-- Added feature_list.json with initial feature backlog
-- Added claude-progress.txt for session tracking
-- Created init.sh for environment setup
-- Project type detected: [node|python|go|generic]
+[2025-02-28T10:00:00Z] [SESSION-1] INIT Harness initialized for project /path/to/project
+[2025-02-28T10:00:05Z] [SESSION-1] Starting [F001] Core project structure (base=abc1234)
+[2025-02-28T10:05:00Z] [SESSION-1] CHECKPOINT [F001] step=2/4 "project structure created"
+[2025-02-28T10:15:00Z] [SESSION-1] Completed [F001] (commit def5678)
+[2025-02-28T10:20:00Z] [SESSION-1] ERROR [F002] [TASK_EXEC] Connection refused
+[2025-02-28T10:20:01Z] [SESSION-1] ROLLBACK [F002] git reset --hard abc1234
+
+## Filtering
+
+grep "ERROR" claude-progress.txt          # All errors
+grep "SESSION-1" claude-progress.txt      # Session 1 only
+grep "CHECKPOINT" claude-progress.txt     # All checkpoints
 ```
 
-### 4. Create init.sh
+### 4. Create feature_list.json.bak
+
+Copy feature_list.json to feature_list.json.bak as backup for JSON corruption recovery.
+
+### 5. Create init.sh
 
 Create a reusable environment setup script:
 
@@ -94,42 +125,24 @@ echo "✅ Environment ready"
 echo "To start dev server: [command]"
 ```
 
-**Make it production-ready:** The init.sh should be something you'd actually use daily.
+**Make it production-ready:** The init.sh should be something you'd actually use daily. Must be idempotent (safe to re-run).
 
-### 5. Create Initial Git Commit
+### 6. Create Initial Git Commit
 
 ```bash
 git add .
 git commit -m "feat(harness): initial project setup
 
 - Add Harness system for long-running agent support
-- Add feature_list.json with initial backlog
+- Add feature_list.json (v2) with initial backlog
 - Add claude-progress.txt for progress tracking
 - Add init.sh for environment setup
 - Detect project type: [type]"
 ```
 
-### 6. Update CLAUDE.md
+### 7. Update CLAUDE.md
 
-Add Harness documentation to the project's CLAUDE.md:
-
-```markdown
-## Harness System
-
-This project uses the Harness system for long-running agent support.
-
-### Key Files
-- `feature_list.json` - Feature backlog with priorities
-- `claude-progress.txt` - Session progress log
-- `init.sh` - Environment setup script
-
-### Session Start Protocol
-1. Read claude-progress.txt
-2. Check git log --oneline -10
-3. Read feature_list.json
-4. Run ./init.sh to verify environment
-5. Select highest priority pending feature
-```
+Add Harness documentation to the project's CLAUDE.md with the new v2 features.
 
 ## What NOT To Do
 
@@ -143,8 +156,9 @@ Your job is infrastructure only. Keep it simple.
 ## Success Criteria
 
 You are done when:
-- [ ] feature_list.json exists with at least one feature
-- [ ] claude-progress.txt exists with initialization entry
+- [ ] feature_list.json exists with v2 format and at least one feature
+- [ ] feature_list.json.bak backup exists
+- [ ] claude-progress.txt exists with initialization entry in new format
 - [ ] init.sh is executable and runs without error
 - [ ] Initial git commit is made
 - [ ] CLAUDE.md is updated with Harness docs

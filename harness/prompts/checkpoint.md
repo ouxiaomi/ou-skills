@@ -5,105 +5,162 @@
 ## When To Use This
 
 - Agent crashed mid-session
-- Session ended unexpectedly
+- Session ended unexpectedly (context window reset)
 - You found broken code from previous session
 - You want to review state before continuing
+
+---
 
 ## Recovery Protocol
 
 ### Step 1: Assess Current State
 
 ```bash
-# What's the current situation?
+# Confirm location
 pwd
+
+# Check git state
 git status
-cat claude-progress.txt | tail -20
+git diff --stat
+
+# Read recent progress
+cat claude-progress.txt | tail -200
+
+# Read task structure
+cat feature_list.json
 ```
 
-### Step 2: Understand Recent Work
+### Step 2: Identify Interrupted Task
+
+Look for task with `status: "in_progress`:
 
 ```bash
-# What did the previous agent try to do?
-git log --oneline -5
-git diff HEAD~1
-
-# What was the last feature in progress?
-grep -A5 "Next:" claude-progress.txt
+grep -A50 '"status": "in_progress"' feature_list.json
 ```
 
-### Step 3: Handle Uncommitted Changes
+Check its details:
+- `started_at_commit` - Where task began
+- `checkpoints` - Last completed step
+- `attempts` - How many times attempted
 
-```bash
-# Check for modifications
-git status --short
-```
+### Step 3: Analyze Checkpoints
 
-**If changes look good:**
-```bash
-git add -A
-git commit -m "WIP: [describe what was in progress]"
-```
+If the task has checkpoints, verify file state matches claims:
+- Do the files mentioned in checkpoints exist?
+- Do they contain the expected content?
 
-**If changes are broken:**
-```bash
-# Reset to last known good state
-git checkout -- .
-echo "⚠️ Reset to last commit - review progress file for next steps"
-```
+### Step 4: Decide Recovery Action
 
-### Step 4: Check Feature Status
+**Decision Matrix:**
 
-```bash
-# Was the last feature completed or in-progress?
-cat feature_list.json | grep -A10 '"status": "pending"'
-```
+| Uncommitted? | Recent Commits? | Checkpoints? | Action |
+|--------------|-----------------|--------------|--------|
+| No | No | None | Mark failed: `[SESSION_TIMEOUT] No progress detected` |
+| No | No | Some | Verify file state. Match → resume. Mismatch → fail |
+| No | Yes | Any | Run validation. Pass → completed. Fail → reset & fail |
+| Yes | No/Yes | Any | Commit -> Run validation. Pass → complete. Fail → reset & fail |
+
+### Step 5: Execute Recovery
+
+**If resuming:**
+- Log: `[RECOVERY] [F001] action="resume" reason="checkpoints match file state"`
+- Continue from last checkpoint
+- Set status back to `in_progress`
+
+**If starting fresh:**
+- Log: `[RECOVERY] [F001] action="reset" reason="progress lost"`
+- Execute `git reset --hard <started_at_commit>` + `git clean -fd`
+- Increment `attempts`, append error to `error_log`
+- Mark status as `failed` (or retry if attempts < max_attempts)
+
+---
+
+## Context Window Recovery Details
+
+When you find `status: "in_progress"` at session start:
+
+1. **Check git state:**
+   ```bash
+   git diff --stat          # Uncommitted changes?
+   git log --oneline -5     # Recent commits?
+   git stash list           # Any stashed work?
+   ```
+
+2. **Verify commit exists:**
+   ```bash
+   git cat-file -t <started_at_commit>
+   ```
+   If missing → work was lost, mark failed
+
+3. **Run validation if exists:**
+   ```bash
+   timeout <timeout_seconds> <validation.command>
+   ```
+   - Pass → mark completed
+   - Fail → rollback, mark failed
+
+---
 
 ## Template: Recovery Entry
 
-When resume is needed, add this to `claude-progress.txt`:
+When resuming, append to `claude-progress.txt`:
 
-```markdown
+```
+[RECOVERY] [F001] action="resume" reason="checkpoints verified, file state matches"
+[RECOVERY] [F002] action="reset" reason="progress lost, no commits since start"
+[RECOVERY] [F003] action="completed" reason="validation passed with uncommitted changes"
+```
+
 ---
-### Recovery Session: YYYY-MM-DD HH:MM
 
-**Previous State:** Session crashed during F003 implementation
-**Git Status:** [clean / has uncommitted changes]
-**Decision:** [commit changes / reset to last commit]
+## Decision Flow
 
-**Resuming with:** F003 - User authentication
+```
+Session Start → Check for in_progress tasks?
+│
+├─ No → Normal session, pick next task
+│
+└─ Yes → Found F001 in_progress
+   │
+   ├─ checkpoints exist?
+   │   ├─ Yes → File state matches?
+   │   │       ├─ Yes → Resume from last step
+   │   │       └─ No  → Mark failed, reset
+   │   │
+   │   └─ No → Recent commits?
+   │           ├─ Yes → Run validation?
+   │           │       ├─ Pass → Mark completed
+   │           │       └─ Fail → Reset & fail
+   │           │
+   │           └─ No → Mark failed (SESSION_TIMEOUT)
+   │
+   └─ has uncommitted changes?
+           ├─ Yes → Commit → Run validation?
+           │           ├─ Pass → Mark completed
+           │           └─ Fail → Reset & fail
+           │
+           └─ No → See above column
+```
+
 ---
-```
-
-## Decision Tree
-
-```
-┌─ Did agent crash?
-│  ├─ Yes → Check git status
-│  │         ├─ Good changes → Commit with WIP prefix
-│  │         └─ Broken code → Reset, read checkpoint
-│  └─ No → Continue normal session
-│
-├─ Uncommitted changes exist?
-│  ├─ Yes → Evaluate quality
-│  │         ├─ Good → Commit
-│  │         └─ Bad → Reset
-│  └─ No → Read progress, pick feature
-│
-└─ Environment works?
-   ├─ Yes → Proceed
-   └─ No → Fix init.sh first
-```
 
 ## Anti-Patterns
 
 **DO NOT:**
 - ❌ Jump into coding without assessing state
+- ❌ Skip git status check
+- ❌ Assume checkpoints are accurate without verifying
 - ❌ Commit broken code
 - ❌ Lose work by resetting without review
-- ❌ Ignore the recovery protocol
+- ❌ Ignore failed dependencies (check `depends_on`)
+- ❌ Skip the recovery protocol
+
+---
 
 ## Checkpoint Key Insight
 
 > The checkpoint exists because context windows are finite. When resuming, treat yourself as a new agent that needs to rapidly understand where work left off.
 
-Read the files. Understand the history. Then proceed.
+Read the files. Understand the history. Verify the state. Then proceed.
+
+The key is: **Progress files + git history = full recovery**

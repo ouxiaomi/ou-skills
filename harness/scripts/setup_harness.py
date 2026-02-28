@@ -98,12 +98,20 @@ def get_project_info(project_path: Path) -> dict:
 
 
 def create_feature_list(project_path: Path, project_info: dict, project_type: str) -> Path:
-    """Create feature_list.json based on existing codebase analysis."""
+    """Create feature_list.json based on existing codebase analysis (v2 format)."""
+    now = datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ")
     feature_list = {
+        "version": 2,
+        "created": now,
         "project": project_info["name"],
-        "version": project_info["version"],
-        "lastUpdated": datetime.now().strftime("%Y-%m-%d"),
-        "features": []
+        "project_version": project_info["version"],
+        "session_config": {
+            "max_tasks_per_session": 20,
+            "max_sessions": 50
+        },
+        "features": [],
+        "session_count": 0,
+        "last_session": None
     }
 
     # Analyze existing features from CLAUDE.md if it exists
@@ -123,7 +131,7 @@ def create_feature_list(project_path: Path, project_info: dict, project_type: st
                 if len(feature_text) > 5 and len(feature_text) < 100:
                     existing_features.append(feature_text)
 
-    # Generate feature entries
+    # Generate feature entries (v2 format)
     feature_id = 1
     seen = set()
 
@@ -138,12 +146,26 @@ def create_feature_list(project_path: Path, project_info: dict, project_type: st
 
         feature_list["features"].append({
             "id": f"F{feature_id:03d}",
+            "title": feature_text,
             "category": "existing",
-            "description": feature_text,
-            "priority": "medium",
             "status": "completed",
-            "steps": [],
-            "testCommand": f"验证 {feature_text} 功能"
+            "priority": "medium",
+            "depends_on": [],
+            "attempts": 1,
+            "max_attempts": 3,
+            "started_at_commit": None,
+            "validation": {
+                "command": None,
+                "timeout_seconds": 120
+            },
+            "on_failure": {
+                "cleanup": None
+            },
+            "error_log": [],
+            "checkpoints": [],
+            "completed_at": now,
+            "created_at": now,
+            "blockers": []
         })
         feature_id += 1
 
@@ -151,36 +173,60 @@ def create_feature_list(project_path: Path, project_info: dict, project_type: st
     if len(feature_list["features"]) < 5:
         feature_list["features"].append({
             "id": f"F{feature_id:03d}",
+            "title": "待规划功能",
             "category": "future",
-            "description": "待规划功能",
-            "priority": "low",
             "status": "pending",
-            "steps": ["分析需求", "设计实现方案", "编写代码", "测试验证"],
-            "testCommand": "验证功能正常工作"
+            "priority": "low",
+            "depends_on": [],
+            "attempts": 0,
+            "max_attempts": 3,
+            "started_at_commit": None,
+            "validation": {
+                "command": None,
+                "timeout_seconds": 120
+            },
+            "on_failure": {
+                "cleanup": None
+            },
+            "error_log": [],
+            "checkpoints": [],
+            "completed_at": None,
+            "created_at": now,
+            "blockers": []
         })
 
     output_path = project_path / "feature_list.json"
     output_path.write_text(json.dumps(feature_list, indent=2, ensure_ascii=False))
+    
+    # Create backup for JSON corruption recovery
+    backup_path = project_path / "feature_list.json.bak"
+    backup_path.write_text(json.dumps(feature_list, indent=2, ensure_ascii=False))
+    
     return output_path
 
 
 def create_progress_file(project_path: Path, project_info: dict) -> Path:
-    """Create claude-progress.txt progress tracking file."""
+    """Create claude-progress.txt progress tracking file (append-only log format)."""
+    now = datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ")
     today = datetime.now().strftime("%Y-%m-%d")
 
-    content = f"""# {project_info["name"].title()} 开发进度日志
+    # New standardized log format (single-line, grep-friendly)
+    content = f"""# {project_info["name"].title()} - Harness Progress Log
+#
+# Format: [ISO-timestamp] [SESSION-N] <TYPE> [task-id] [category] message
+# Types: INIT, Starting, Completed, ERROR, CHECKPOINT, ROLLBACK, RECOVERY, STATS, LOCK, WARN
+# Use grep to filter: grep "ERROR" claude-progress.txt
+#
+# ---
+#
+"""
 
-## 格式说明
+    # Add initialization entry in new format
+    content += f"""[{now}] [SESSION-0] INIT Harness initialized for project {project_path}
+[{now}] [SESSION-0] INIT Project: {project_info["name"]} v{project_info["version"]}
+[{now}] [SESSION-0] INIT Environment: Ready for agent sessions
 
-每次会话结束时，代理应在此记录进度：
-- 日期时间
-- 完成的工作
-- 当前状态
-- 下一步计划
-
----
-
-## 进度记录
+# Legacy format (deprecated - use single-line format above):
 
 ### {today} (Harness 系统初始化)
 
@@ -518,60 +564,66 @@ def get_claude_md_addition(project_type: str, project_info: dict) -> str:
 
 ## 长运行代理 Harness
 
-本项目采用 Anthropic 推荐的长运行代理 Harness 架构，支持 AI 代理在多个上下文窗口中持续有效工作。
+本项目采用 Anthropic 推荐的长运行代理 Harness 架构，支持 AI 代理在多个上下文窗口中持续有效工作，具有进度持久化、失败恢复和任务依赖管理功能。
 
 参考：https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents
 
 ### 关键文件
 
-1. **feature_list.json** - 功能需求列表
-   - 记录所有功能需求及其状态（completed/pending/failed）
-   - 代理只允许修改 `status` 字段，不得删除或修改功能描述
-   - 使用 JSON 格式避免被意外修改
+1. **feature_list.json** - 结构化任务列表（v2 格式）
+   - 记录所有功能需求及状态（completed/pending/in_progress/failed/blocked）
+   - 支持任务依赖（`depends_on`）和优先级排序
+   - 每任务可配置验证命令（`validation.command`）和超时
+   - 代理只允许修改指定字段，不得删除或修改 id、title、depends_on
 
-2. **claude-progress.txt** - 进度跟踪日志
-   - 记录每次会话完成的工作
-   - 当前状态和下一步计划
-   - 帮助代理快速了解项目进展
+2. **claude-progress.txt** - 追加式进度日志
+   - 标准化单行格式，grep 友好
+   - 格式：`[ISO-timestamp] [SESSION-N] <TYPE> [task-id] [category] message`
+   - 过滤示例：`grep "ERROR" claude-progress.txt`
 
-3. **init.sh** - 开发环境初始化脚本
-   - 检查环境依赖
-   - 安装/同步依赖
-   - 验证项目配置
+3. **feature_list.json.bak** - JSON 备份
+   - 每次修改前自动备份
+   - 用于 JSON 损坏时恢复
+
+4. **init.sh** - 环境初始化脚本
+   - 检查依赖、安装、验证配置
+   - 必须是幂等的（可安全重复运行）
+
+### 核心特性
+
+- **并发控制**：使用文件锁防止多会话冲突
+- **依赖管理**：自动检测循环依赖和阻塞任务
+- **检查点**：任务内部分步跟踪，记录每个完成的步骤
+- **失败恢复**：自动回滚（git reset）、重试机制
+- **上下文恢复**：session 中断后根据 checkpoint 恢复进度
 
 ### 代理工作流程
 
-每次新会话开始时，代理应执行以下步骤：
+每次新会话开始时，代理必须按顺序执行：
 
-1. **定位工作目录**
-   ```bash
-   pwd  # 确认当前工作目录
-   ```
+```
+1. pwd                                    # 确认工作目录
+2. cat claude-progress.txt | tail -200    # 读取最近进度
+3. cat feature_list.json                   # 读取任务结构
+4. git log --oneline -10                   # 查看最近提交
+5. git diff --stat                         # 检查未提交变更
+6. ./init.sh                               # 验证开发环境
+```
 
-2. **了解项目进度**
-   - 读取 `claude-progress.txt` 了解最近工作
-   - 运行 `git log --oneline -10` 查看最近提交
+### 任务状态流转
 
-3. **选择下一个任务**
-   - 读取 `feature_list.json`
-   - 选择优先级最高的 pending 功能开始工作
+```
+pending → in_progress → completed
+                  ↘_→ failed → (retry if attempts < max_attempts)
+```
 
-4. **验证环境状态**
-   ```bash
-   ./init.sh  # 验证开发环境
-   ```
+### 验证要求
 
-5. **完成工作后**
-   - 提交 Git（描述性提交信息）
-   - 更新 `claude-progress.txt`
-   - 更新 `feature_list.json` 中的功能状态
-
-### 测试要求
-
-代理在标记功能为 "completed" 之前，必须：
-1. 运行相关测试（如果存在）
-2. 手动验证功能端到端工作正常
-3. 确保代码符合项目规范
+代理在标记功能为 "completed" 前，必须：
+1. 运行该任务的 `validation.command`（如果配置）
+2. 确保命令在超时内返回 0
+3. 手动验证功能端到端工作（必要时）
+4. 确保代码符合项目规范
 '''
 
 
